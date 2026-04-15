@@ -1,127 +1,281 @@
-# Revenue Maximization for Ride-Sharing
-### Using Price Discretization and Linear / Integer Programming
+# 🚕 Revenue Maximization for Ride-Sharing
+
+### Using Price Discretization, MILP & AMPL Optimization
 
 ---
 
-## Project Overview
+## 📌 Project Overview
 
-This project formulates and solves a **Mixed-Integer Linear Program (MILP)**
-to maximize revenue for a ride-sharing platform by optimally selecting
-**discrete price levels** across different zones and time periods.
+This project develops a **data-driven optimization framework** to maximize revenue for a ride-sharing platform by selecting **optimal price levels across zones and time slots**.
 
-**Dataset** : NYC TLC Yellow Taxi Trip Records  
-**Source**  : https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page
+The problem is formulated as a **Mixed-Integer Linear Program (MILP)** and solved using:
 
----
-
-## Team Division
-
-| Member | Role | Module |
-|--------|------|--------|
-| Member 1 | Data Engineering & Preprocessing | `src/data_preparation.py` |
-| Member 2 | Demand Modelling & Pricing Logic | `src/demand_modeling.py` |
-| Member 3 | Optimization Modelling (CORE) | `src/optimization.py` |
-| Member 4 | Analysis, OR Concepts & Presentation | `src/analysis.py` |
+* **Python (PuLP)** for modeling & prototyping
+* **AMPL + HiGHS Solver** for industry-grade optimization
 
 ---
 
-## Directory Structure
+## 📊 Dataset
+
+* **Source**: NYC TLC Yellow Taxi Trip Records
+* **Link**: https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page
+* **Granularity**:
+
+  * Zone-wise
+  * Time-slot (Peak / Off-Peak)
+  * Trip-level raw data → aggregated into demand/supply
+
+---
+
+## 🎯 Objective
+
+Maximize total revenue:
+
+```
+max Z = Σ_i Σ_j  p_j · x_{i,j}  −  penalty · unmet_demand
+```
+
+---
+
+## 🧠 Key Idea
+
+* Lower prices → higher demand
+* Higher prices → higher revenue per ride
+* Limited drivers → supply constraint
+
+👉 The model finds the **optimal trade-off between price and service capacity**
+
+---
+
+## ⚙️ Mathematical Model
+
+### Decision Variables
+
+| Variable | Type  | Meaning                                 |
+| -------- | ----- | --------------------------------------- |
+| x_{i,j}  | ℝ ≥ 0 | Rides served in zone i at price level j |
+| y_{i,j}  | {0,1} | 1 if price level j is selected          |
+| u_i      | ℝ ≥ 0 | Unserved demand (lost rides)            |
+
+---
+
+### Objective Function
+
+```
+maximize Z =
+    Σ_i Σ_j (price[j] * x[i,j])
+  − penalty * Σ_i u[i]
+```
+
+---
+
+### Constraints
+
+| #   | Constraint                              | Meaning              |
+| --- | --------------------------------------- | -------------------- |
+| C1  | x[i,j] ≤ D[i,j] * y[i,j]                | Cannot exceed demand |
+| C1b | Σ_j x[i,j] + u[i] = Σ_j D[i,j] * y[i,j] | Demand balance       |
+| C2  | Σ_j x[i,j] ≤ S[i]                       | Driver supply limit  |
+| C3  | Σ_j y[i,j] = 1                          | One price per zone   |
+| C4  | x ≥ 0, y ∈ {0,1}, u ≥ 0                 | Feasibility          |
+
+---
+
+## 💡 Important Modeling Improvement
+
+Unlike basic models:
+
+✔ Introduced **unserved demand penalty**
+✔ Prevents unrealistic “ignore demand” solutions
+✔ Mimics **customer churn / lost business**
+
+---
+
+## 🏗️ Project Architecture
 
 ```
 ride_sharing_optimization/
 │
+├── ampl/
+│   ├── model.mod              ← MILP formulation (AMPL)
+│   ├── data.dat               ← Generated input data
+│   ├── run.run                ← Solve + analysis script
+│   └── generate_ampl_data.py
+│
 ├── data/
-│   ├── raw/                  ← Place downloaded NYC TLC .csv / .parquet here
-│   ├── processed/            ← Auto-generated LP input table (lp_input.csv)
-│   └── external/             ← Zone lookup tables, shapefiles, etc.
+│   ├── raw/                   ← NYC TLC parquet
+│   ├── processed/             ← lp_input.csv
+│   └── external/
 │
 ├── src/
-│   ├── __init__.py
-│   ├── data_preparation.py   ← Member 1
-│   ├── demand_modeling.py    ← Member 2
-│   ├── optimization.py       ← Member 3
-│   └── analysis.py           ← Member 4
-│
-├── notebooks/
-│   ├── 01_data_preparation.ipynb
-│   ├── 02_demand_modeling.ipynb
-│   ├── 03_optimization_model.ipynb
-│   └── 04_analysis_visualization.ipynb
+│   ├── data_preparation.py    ← Cleaning + feature engineering
+│   ├── demand_modeling.py     ← Demand estimation (price elasticity)
+│   ├── optimization.py        ← PuLP MILP model
+│   └── analysis.py            ← Visualization & OR analysis
 │
 ├── outputs/
-│   ├── figures/              ← All plots saved here
-│   └── results/              ← optimal_rides.csv, selected_prices.csv
+│   ├── figures/
+│   └── results/
 │
-├── reports/
-│   └── assets/               ← Images for final report
-│
-├── main.py                   ← Full pipeline entry point
+├── main.py
 ├── requirements.txt
 └── README.md
 ```
 
 ---
 
-## Quick Start
+## 🚀 Pipeline Flow
+
+```
+Raw Taxi Data
+    ↓
+Data Cleaning & Feature Engineering
+    ↓
+Demand Estimation (price-based)
+    ↓
+LP Input Table (zone × time)
+    ↓
+MILP Optimization
+    ↓
+Results + Visualization + Sensitivity
+```
+
+---
+
+## 📈 Key Results & Insights
+
+### 🔹 Demand Behavior
+
+* Demand decreases with price (elastic)
+* Highly sensitive at lower price levels
+
+---
+
+### 🔹 Pricing Strategy
+
+* High-demand zones → higher prices (₹200)
+* Moderate zones → medium prices (₹150)
+* Low-demand zones → low prices (₹100)
+
+---
+
+### 🔹 Core Finding
+
+> Revenue is constrained more by **driver availability** than demand.
+
+---
+
+### 🔹 Shadow Prices (Duality)
+
+* Positive shadow price → drivers are scarce
+* Zero shadow price → excess drivers
+
+👉 Interpretation:
+
+> Shadow price = **value of adding one extra driver**
+
+---
+
+### 🔹 Sensitivity Analysis
+
+Tested impact of:
+
+* Driver supply increase (+10%)
+* Demand fluctuations
+
+Observation:
+
+* Revenue increases only in **constrained zones**
+* No effect in surplus zones
+
+---
+
+## 📊 OR Concepts Implemented
+
+* Linear Programming (LP)
+* Mixed Integer Programming (MILP)
+* Graphical Method (2-variable case)
+* Duality (shadow pricing)
+* Sensitivity Analysis
+* Capacity Constraints
+* Discrete Decision Modeling
+
+---
+
+## 🛠️ Tools & Technologies
+
+| Tool                   | Purpose                  |
+| ---------------------- | ------------------------ |
+| Python (Pandas, NumPy) | Data processing          |
+| PuLP                   | Optimization (prototype) |
+| AMPL                   | Industrial optimization  |
+| HiGHS Solver           | MILP solving             |
+| Matplotlib             | Visualization            |
+
+---
+
+## ▶️ How to Run
+
+### Python Pipeline
 
 ```bash
-# 1. Install dependencies
 pip install -r requirements.txt
-
-# 2. Download data (Jan 2023 recommended)
-# https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2023-01.parquet
-
-# 3. Place file in data/raw/
-mv yellow_tripdata_2023-01.parquet data/raw/
-
-# 4. Run full pipeline
-python main.py --data data/raw/yellow_tripdata_2023-01.parquet
+python main.py --data data/raw/yellow_tripdata_2025-01.parquet
 ```
 
 ---
 
-## Mathematical Model
+### AMPL Optimization
 
-**Decision Variables**
-
-| Symbol | Type | Description |
-|--------|------|-------------|
-| x_{i,j} | ℝ ≥ 0 | Rides served in zone i at price level j |
-| y_{i,j} | {0,1} | 1 if price level j is selected for zone i |
-
-**Objective**
-
+```bash
+cd ampl
+ampl
+include run.run;
 ```
-max Z = Σ_i Σ_j  p_j · x_{i,j}
-```
-
-**Constraints**
-
-| # | Constraint | Meaning |
-|---|-----------|---------|
-| C1 | x_{i,j} ≤ D_{i,j} · y_{i,j} | Cannot exceed demand; rides only if price selected |
-| C2 | Σ_j x_{i,j} ≤ S_i | Total rides ≤ available drivers in zone i |
-| C3 | Σ_j y_{i,j} = 1 | Exactly one price level per zone |
-| C4 | x_{i,j} ≥ 0, y_{i,j} ∈ {0,1} | Non-negativity & binary |
 
 ---
 
-## Key Assumptions (Document in Report)
+## ⚠️ Assumptions
 
-1. Demand = number of trip requests per zone per time slot
-2. Driver supply approximated from mean trip duration (concurrent trips proxy)
-3. Demand decreases with price: Low→100%, Medium→75%, High→50%
-4. Prices are discretized: ₹100, ₹150, ₹200
-5. One price level is applied uniformly across an entire zone × time slot
+1. Demand derived from historical trip counts
+2. Driver supply approximated using trip frequency
+3. Demand decreases with price (discretized elasticity)
+4. Fixed price per zone per time slot
+5. No ride pooling or routing considered
 
 ---
 
-## OR Concepts Covered
+## 🚀 Future Scope
 
-- Linear Programming (LP)
-- Graphical Method (2-variable case)
-- Simplex Method (LP relaxation)
-- Duality (shadow price = value of adding one driver)
-- Sensitivity Analysis (demand & supply variation)
-- Integer Programming (binary price-selection variables)
-- Transportation / Assignment Problem (driver allocation)
+* Real-time dynamic pricing
+* Machine learning demand prediction
+* Driver repositioning across zones
+* Ride pooling optimization
+* Reinforcement learning-based pricing
+
+---
+
+## 👥 Team Roles
+
+| Member   | Contribution              |
+| -------- | ------------------------- |
+| Member 1 | Data preprocessing        |
+| Member 2 | Demand modeling           |
+| Member 3 | Optimization (core model) |
+| Member 4 | Analysis & visualization  |
+
+---
+
+## 🏁 Final Conclusion
+
+This project demonstrates how **optimization + data** can be used to design pricing strategies in ride-sharing systems.
+
+> The optimal pricing policy is not driven purely by demand, but by the **interaction between demand and supply constraints**.
+
+---
+
+## 📌 Author Note
+
+This project bridges **Operations Research theory** with **real-world platform economics**, providing a strong foundation for dynamic pricing systems used in modern ride-sharing platforms.
+
+---
