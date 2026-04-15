@@ -1,0 +1,109 @@
+# =============================================================================
+# run.run  —  AMPL solve script
+# =============================================================================
+# Usage (from terminal inside /ampl/):
+#   ampl run.run
+# =============================================================================
+
+reset;
+
+# ── Load model and data ───────────────────────────────────────────────────────
+model model.mod;
+data  data.dat;
+
+# ── Solver selection ──────────────────────────────────────────────────────────
+# Options: cplex, gurobi, cbc, glpk, highs
+# Free solvers: cbc, glpk, highs (recommended: highs or cbc)
+option solver highs;
+
+# HiGHS options (tune if needed)
+option highs_options "mip_rel_gap=1e-6 time_limit=300";
+
+# ── Solve ─────────────────────────────────────────────────────────────────────
+solve;
+
+# ── Solution status check ─────────────────────────────────────────────────────
+printf "\n";
+printf "=========================================================\n";
+printf "  SOLVE RESULT  : %s\n", solve_result;
+printf "  OPTIMAL REV   : INR %.2f\n", TotalRevenue;
+printf "=========================================================\n\n";
+
+# ── Print selected prices per zone ───────────────────────────────────────────
+printf "Selected Price Level per Zone:\n";
+printf "%-25s  %-12s  %s\n", "Zone", "Price Level", "Price (INR)";
+printf "%s\n", "---------------------------------------------------";
+for {i in ZONES, j in PRICE_LEVELS: y[i,j] > 0.5} {
+    printf "%-25s  %-12s  %.0f\n", i, j, price[j];
+}
+
+# ── Print rides and revenue per zone ─────────────────────────────────────────
+printf "\nRides Served and Revenue (non-zero only):\n";
+printf "%-25s  %-12s  %8s  %12s\n", "Zone", "Price Level", "Rides", "Revenue (INR)";
+printf "%s\n", "-----------------------------------------------------------";
+for {i in ZONES, j in PRICE_LEVELS: x[i,j] > 0.001} {
+    printf "%-25s  %-12s  %8.0f  %12.2f\n",
+           i, j, x[i,j], price[j] * x[i,j];
+}
+
+# ── Duality: Shadow prices on driver supply constraint ────────────────────────
+printf "\nShadow Prices (INR gained per extra driver):\n";
+printf "%-25s  %s\n", "Zone", "Shadow Price (INR)";
+printf "%s\n", "-------------------------------------------";
+for {i in ZONES: DriverSupply[i].dual != 0} {
+    printf "%-25s  %.2f\n", i, DriverSupply[i].dual;
+}
+
+# ── Sensitivity: which zones are supply-constrained? ─────────────────────────
+printf "\nSupply Slack (drivers unused):\n";
+printf "%-25s  %10s  %10s  %10s\n", "Zone", "Drivers", "Used", "Slack";
+printf "%s\n", "------------------------------------------------------";
+for {i in ZONES} {
+    printf "%-25s  %10.0f  %10.0f  %10.0f\n",
+           i, S[i],
+           sum {j in PRICE_LEVELS} x[i,j],
+           S[i] - sum {j in PRICE_LEVELS} x[i,j];
+}
+
+# ── Export results to CSV ─────────────────────────────────────────────────────
+printf "\nExporting results to results.csv ...\n";
+
+# Write header (overwrite file)
+printf "zone,price_level,price,rides_served,revenue,selected\n" > "../outputs/results/ampl_results.csv";
+
+# Append data rows
+for {i in ZONES, j in PRICE_LEVELS} {
+    printf "%s,%s,%.0f,%.0f,%.2f,%d\n",
+           i, j, price[j], x[i,j], price[j]*x[i,j],
+           (if y[i,j] > 0.5 then 1 else 0)
+    >> "../outputs/results/ampl_results.csv";
+}
+
+printf "Done. Results saved to outputs/results/ampl_results.csv\n\n";
+
+
+# ── STEP: Fix price decisions and re-solve LP ─────────────────────────
+
+printf "\nRe-solving LP for shadow prices (fixed pricing)...\n";
+
+# Fix y variables
+for {i in ZONES, j in PRICE_LEVELS} {
+
+    if y[i,j] > 0.5 then
+        fix y[i,j] := 1;
+
+    if y[i,j] <= 0.5 then
+        fix y[i,j] := 0;
+}
+
+# Change y to continuous (effectively LP now)
+option relax_integrality 1;
+
+solve;
+
+printf "\nShadow Prices (VALID):\n";
+for {i in ZONES} {
+    printf "%-25s  %.2f\n", i, DriverSupply[i].dual;
+}
+
+printf "\nDriver Sensitivity Analysis:\n";

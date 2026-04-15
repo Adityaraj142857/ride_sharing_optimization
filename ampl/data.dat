@@ -1,0 +1,83 @@
+# =============================================================
+# data.dat  —  Auto-generated from data/processed/lp_input.csv
+# =============================================================
+
+set PRICE_LEVELS := low medium high ;
+
+set ZONES :=
+    142_offpeak
+    142_peak
+    161_offpeak
+    161_peak
+    162_offpeak
+    162_peak
+    163_offpeak
+    163_peak
+    186_offpeak
+    186_peak
+    230_offpeak
+    230_peak
+    234_offpeak
+    234_peak
+    236_offpeak
+    236_peak
+    237_offpeak
+    237_peak
+    239_offpeak
+    239_peak
+;
+
+param price :=
+    low      100
+    medium   150
+    high     200
+;
+
+param penalty := 30;
+
+param S :=
+    142_offpeak               36504
+    142_peak                  25344
+    161_offpeak               50465
+    161_peak                  42138
+    162_offpeak               32408
+    162_peak                  32494
+    163_offpeak               29942
+    163_peak                  22169
+    186_offpeak               37772
+    186_peak                  28293
+    230_offpeak               39194
+    230_peak                  25755
+    234_offpeak               31338
+    234_peak                  21654
+    236_offpeak               46595
+    236_peak                  41440
+    237_offpeak               52845
+    237_peak                  40090
+    239_offpeak               29650
+    239_peak                  24002
+;
+
+param D :
+           low        medium     high  :=
+    142_offpeak               60836      32877      23606
+    142_peak                  42238      16782      8834
+    161_offpeak               84108      60516      51463
+    161_peak                  70228      43028      33595
+    162_offpeak               54011      26353      17413
+    162_peak                  54152      26480      17531
+    163_offpeak               49898      22767      14113
+    163_peak                  36943      13173      5845
+    186_offpeak               62949      35043      25706
+    186_peak                  47152      20517      12091
+    230_offpeak               65322      37557      28166
+    230_peak                  42921      17279      9259
+    234_offpeak               52225      24763      15940
+    234_peak                  36088      12631      5413
+    236_offpeak               77654      52016      42694
+    236_peak                  69062      41694      32263
+    237_offpeak               88072      66054      57247
+    237_peak                  66811      39178      29765
+    239_offpeak               49411      22359      13743
+    239_peak                  39997      15202      7503
+;
