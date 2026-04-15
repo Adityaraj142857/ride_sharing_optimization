@@ -27,6 +27,10 @@ import logging
 import pandas as pd
 import numpy as np
 
+def safe_name(s):
+    """Convert strings into solver-safe names"""
+    return str(s).replace("-", "_").replace(" ", "_")
+
 log = logging.getLogger(__name__)
 
 try:
@@ -172,31 +176,39 @@ def build_and_solve(lp_input: pd.DataFrame,
     # We compute them from a continuous LP with y fixed to the optimal MILP choice.
     shadow = {}
     if compute_shadow_prices and status == "Optimal":
-        chosen = {(g, j): int(round(pulp.value(y[(g, j)]) or 0)) for g in groups for j in J}
 
+        chosen = {(g, j): int(round(pulp.value(y[(g, j)]) or 0)) for g in groups for j in J}    
+
+        # ✅ LP is created HERE
         lp = pulp.LpProblem("RideSharing_FixedPrice_LP", pulp.LpMaximize)
-        x_lp = {(g, j): pulp.LpVariable(f"xLP_{g[0]}_{g[1]}_{j}", lowBound=0)
-                for g in groups for j in J}
+
+        x_lp = {(g, j): pulp.LpVariable(f"xLP_{g[0]}_{g[1]}_{j}", lowBound=0) for g in groups for j in J} 
         u_lp = {g: pulp.LpVariable(f"uLP_{g[0]}_{g[1]}", lowBound=0) for g in groups}
 
-        lp += (
-            pulp.lpSum(PRICE_LEVELS[j] * x_lp[(g, j)] for g in groups for j in J)
-            - unserved_penalty * pulp.lpSum(u_lp[g] for g in groups)
-        )
+        lp += (pulp.lpSum(PRICE_LEVELS[j] * x_lp[(g, j)] for g in groups for j in J)
+               - unserved_penalty * pulp.lpSum(u_lp[g] for g in groups)), "LP_objective"
 
-        # Demand caps become constants when y is fixed
+        # 👇👇👇 YOUR FIX GOES HERE ONLY
         for g in groups:
             for j in J:
                 lp += x_lp[(g, j)] <= D[g][j] * chosen[(g, j)], f"LP_C1_{g[0]}_{g[1]}_{j}"
+
             lp += (
                 pulp.lpSum(x_lp[(g, j)] for j in J) + u_lp[g]
                 == pulp.lpSum(D[g][j] * chosen[(g, j)] for j in J)
             ), f"LP_balance_{g[0]}_{g[1]}"
-            lp += pulp.lpSum(x_lp[(g, j)] for j in J) <= S[g], f"LP_C2_{g[0]}_{g[1]}"
 
+            # ✅ THIS IS THE FIXED LINE
+            cname = f"LP_C2_{safe_name(g[0])}_{safe_name(g[1])}"
+            lp += pulp.lpSum(x_lp[(g, j)] for j in J) <= S[g], cname
+
+        # solve AFTER constraints
         lp.solve(pulp.PULP_CBC_CMD(msg=0))
+
+        # extract duals
         for g in groups:
-            c = lp.constraints.get(f"LP_C2_{g[0]}_{g[1]}")
+            cname = f"LP_C2_{safe_name(g[0])}_{safe_name(g[1])}"
+            c = lp.constraints.get(cname)
             if c and c.pi is not None:
                 shadow[g] = c.pi
 
